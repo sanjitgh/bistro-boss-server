@@ -24,9 +24,14 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
         const menuCollection = client.db("menuDB").collection("menu");
+        const reviewsCollection = client.db("menuDB").collection("reviews");
 
         app.get('/menu', async (req, res) => {
             const menu = await menuCollection.find().toArray();
+            res.send(menu)
+        })
+        app.get('/reviews', async (req, res) => {
+            const menu = await reviewsCollection.find().toArray();
             res.send(menu)
         })
 
