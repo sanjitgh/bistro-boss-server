@@ -25,6 +25,7 @@ async function run() {
     try {
         const menuCollection = client.db("menuDB").collection("menu");
         const reviewsCollection = client.db("menuDB").collection("reviews");
+        const cartCollection = client.db("menuDB").collection("carts");
 
         app.get('/menu', async (req, res) => {
             const menu = await menuCollection.find().toArray();
@@ -33,6 +34,18 @@ async function run() {
         app.get('/reviews', async (req, res) => {
             const menu = await reviewsCollection.find().toArray();
             res.send(menu)
+        })
+
+        // cart callection
+        app.post('/carts', async (req, res) => {
+            const cartItem = req.body;
+            const result = await cartCollection.insertOne(cartItem);
+            res.json(result)
+        })
+
+        app.get("/carts", async (req, res) => {
+            const result = await cartCollection.find().toArray();
+            res.send(result);
         })
 
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
