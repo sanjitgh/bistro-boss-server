@@ -23,9 +23,22 @@ const client = new MongoClient(uri, {
 
 async function run() {
     try {
+        const usersCollection = client.db("menuDB").collection("users");
         const menuCollection = client.db("menuDB").collection("menu");
         const reviewsCollection = client.db("menuDB").collection("reviews");
         const cartCollection = client.db("menuDB").collection("carts");
+
+        // user related api
+        app.post('/users', async (req, res) => {
+            const user = req.body;
+            const query = { email: user.email };
+            const isExistingUser = await usersCollection.findOne(query);
+            if (isExistingUser) {
+                return res.send({ message: "User Already Exist!" })
+            }
+            const result = await usersCollection.insertOne(user);
+            res.send(result);
+        })
 
         app.get('/menu', async (req, res) => {
             const menu = await menuCollection.find().toArray();
