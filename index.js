@@ -38,7 +38,6 @@ async function run() {
 
         // middleware
         const verifyToken = (req, res, next) => {
-            console.log(req.headers.authorization);
             if (!req.headers.authorization) {
                 return res.status(401).send({ message: 'unauthorized access' })
             }
@@ -110,7 +109,7 @@ async function run() {
             res.send(result)
         })
 
-        app.delete('/users/:id',verifyToken, verifyAdmin, async (req, res) => {
+        app.delete('/users/:id', verifyToken, verifyAdmin, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const result = await usersCollection.deleteOne(query);
@@ -118,11 +117,26 @@ async function run() {
         })
 
 
-        //////////
+        // menu
+        app.post('/menu', verifyToken, verifyAdmin, async (req, res) => {
+            const menu = req.body;
+            const result = await menuCollection.insertOne(menu);
+            res.send(result)
+        })
+
         app.get('/menu', async (req, res) => {
             const menu = await menuCollection.find().toArray();
             res.send(menu)
         })
+
+        app.delete('/menu/:id', verifyAdmin, verifyToken, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await menuCollection.deleteOne(query);
+            res.send(result);
+        })
+
+        // review & testimonial api
         app.get('/reviews', async (req, res) => {
             const menu = await reviewsCollection.find().toArray();
             res.send(menu)
