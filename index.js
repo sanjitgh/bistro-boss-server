@@ -4,7 +4,12 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 require('dotenv').config()
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const formData = require('form-data');
+const Mailgun = require('mailgun.js');
+const mailgun = new Mailgun(formData);
 const port = process.env.PORT || 5000;
+
+const mg = mailgun.client({ username: 'api', key: process.env.MAIL_GUN_API_KEY });
 
 // midelwere
 app.use(cors());
@@ -215,6 +220,22 @@ async function run() {
                 }
             }
             const deleteResult = await cartCollection.deleteMany(query);
+
+            // send user email about payment confirmation
+            mg.messages.create(process.env.MAIL_SENDING_DOMAIN, {
+                from: "Excited User <mailgun@sandbox077ac2f55cba4def8c599ede346ebde3.mailgun.org>",
+                to: ["sanjitkumarghosh0@gmail.com"],
+                subject: "BistroBoss order confirmation",
+                text: "Testing some Mailgun awesomeness!",
+                html: `
+                <h1>Thank you for your order</h1>
+                 <h3>Your transaction id: <strong>${payment.transactionId}</strong>
+                 </h3>
+                `
+            })
+                .then(msg => console.log(msg)) // logs response data
+                .catch(err => console.log(err)); // logs any error
+
             res.send({ paymentResult, deleteResult })
         })
 
@@ -255,7 +276,39 @@ async function run() {
             })
         })
 
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+
+        // using aggregate pipeline
+        app.get('/order-stats', verifyToken, verifyAdmin, async (req, res) => {
+            const result = await paymentCollection.aggregate([
+                {
+                    $unwind: '$menuItemIds'
+                },
+                {
+                    $lookup: {
+                        from: 'menu',
+                        localField: 'menuItemIds',
+                        foreignField: '_id',
+                        as: 'menuItems'
+                    }
+                },
+                {
+                    $unwind: '$menuItems'
+                },
+                {
+                    $group: {
+                        _id: '$menuItems.category',
+                        quantity: { $sum: 1 },
+                        revinue: { $sum: '$menuItems.price' }
+                    }
+                }
+
+
+            ]).toArray();
+
+            res.send(result)
+        })
+
+        // console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
         // Ensures that the client will close when you finish/error
         // await client.close();
