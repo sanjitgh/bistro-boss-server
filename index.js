@@ -8,12 +8,14 @@ const formData = require('form-data');
 const Mailgun = require('mailgun.js');
 const mailgun = new Mailgun(formData);
 const port = process.env.PORT || 5000;
+const axios = require('axios')
 
 const mg = mailgun.client({ username: 'api', key: process.env.MAIL_GUN_API_KEY });
 
 // midelwere
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded());
 
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
@@ -246,6 +248,96 @@ async function run() {
             };
             const result = await paymentCollection.find(query).toArray();
             res.send(result);
+        })
+
+        // create ssl commerz payment 
+        app.post('/create-ssl-payment', async (req, res) => {
+            const payment = req.body;
+            const trxid = new ObjectId().toString();
+            payment.transactionId = trxid
+
+            const initiate = {
+                store_id: "abc67cd90a7e423c",
+                store_passwd: "abc67cd90a7e423c@ssl",
+                total_amount: `${payment.price}`,
+                currency: 'BDT',
+                tran_id: trxid,
+                success_url: 'https://bistro-boss-server-eight-hazel.vercel.app/success-payment',
+                fail_url: 'https://bistro-boss-server-eight-hazel.vercel.app/fail',
+                cancel_url: 'https://bistro-boss-server-eight-hazel.vercel.app/cancel',
+                ipn_url: 'https://bistro-boss-server-eight-hazel.vercel.app/ipn-success-payment',
+                shipping_method: 'Courier',
+                product_name: 'Computer.',
+                product_category: 'Electronic',
+                product_profile: 'general',
+                cus_name: 'Customer Name',
+                cus_email: `${payment.email}`,
+                cus_add1: 'Dhaka',
+                cus_add2: 'Dhaka',
+                cus_city: 'Dhaka',
+                cus_state: 'Dhaka',
+                cus_postcode: '1000',
+                cus_country: 'Bangladesh',
+                cus_phone: '01711111111',
+                cus_fax: '01711111111',
+                ship_name: 'Customer Name',
+                ship_add1: 'Dhaka',
+                ship_add2: 'Dhaka',
+                ship_city: 'Dhaka',
+                ship_state: 'Dhaka',
+                ship_postcode: 1000,
+                ship_country: 'Bangladesh',
+            }
+
+            const iniResponse = await axios({
+                url: "https://sandbox.sslcommerz.com/gwprocess/v4/api.php",
+                method: "POST",
+                data: initiate,
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+            });
+
+            const saveData = await paymentCollection.insertOne(payment);
+
+            const gatewayUrl = iniResponse?.data?.GatewayPageURL
+
+            res.send({ gatewayUrl })
+
+        })
+
+        app.post('/success-payment', async (req, res) => {
+            // success payment data
+            const paymentSuccess = req.body;
+
+            // validation
+            const { data } = await axios.get(`https://sandbox.sslcommerz.com/validator/api/validationserverAPI.php?val_id=${paymentSuccess.val_id}&store_id=abc67cd90a7e423c&store_passwd=abc67cd90a7e423c@ssl&format=json`)
+
+
+            if (data.status !== "VALID") {
+                return res.send({ message: "Invalid Payment!" })
+            }
+
+            // update the payment
+            const updatePayment = await paymentCollection.updateOne({ transactionId: data.tran_id }, {
+                $set: {
+                    status: "success"
+                }
+            })
+
+            // delete each item from the cart
+            const payment = await paymentCollection.findOne({
+                transactionId: data.tran_id
+            })
+            const query = {
+                _id: {
+                    $in: payment.cartIds.map(id => new ObjectId(id))
+                }
+            }
+            const deleteResult = await cartCollection.deleteMany(query);
+
+            res.redirect('http://localhost:5173')
+            // console.log("update payment", updatePayment);
         })
 
         // stats or analysis
